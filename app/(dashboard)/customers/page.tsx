@@ -18,9 +18,20 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Pencil } from "lucide-react"
+import { Pencil, Loader2 } from "lucide-react"
 import { toast } from "sonner"
 import { apiFetch } from "@/lib/api"
+
+import {
+    Pagination,
+    PaginationContent,
+    PaginationItem,
+    PaginationLink,
+    PaginationNext,
+    PaginationPrevious,
+} from "@/components/ui/pagination"
+
+/* ================= TYPES ================= */
 
 type Customer = {
     id: number
@@ -28,27 +39,34 @@ type Customer = {
     email: string
 }
 
+/* ================= PAGE ================= */
+
 export default function CustomersPage() {
     const [customers, setCustomers] = useState<Customer[]>([])
     const [loading, setLoading] = useState(true)
 
-    // dialog state
+    // pagination
+    const [page, setPage] = useState(1)
+    const limit = 15
+
+    // dialog
     const [open, setOpen] = useState(false)
     const [editingCustomer, setEditingCustomer] =
         useState<Customer | null>(null)
 
-    // form state
+    // form
     const [name, setName] = useState("")
     const [email, setEmail] = useState("")
     const [saving, setSaving] = useState(false)
 
-    // -----------------------------
-    // Load customers
-    // -----------------------------
-    async function loadCustomers() {
+    /* ================= LOAD CUSTOMERS ================= */
+
+    async function loadCustomers(currentPage = page) {
         try {
             setLoading(true)
-            const data = await apiFetch<Customer[]>("/customers")
+            const data = await apiFetch<Customer[]>(
+                `/customers/?page=${currentPage}&limit=${limit}` // ✅ trailing slash
+            )
             setCustomers(data)
         } catch {
             toast.error("Failed to load customers")
@@ -59,11 +77,10 @@ export default function CustomersPage() {
 
     useEffect(() => {
         loadCustomers()
-    }, [])
+    }, [page])
 
-    // -----------------------------
-    // Open create dialog
-    // -----------------------------
+    /* ================= DIALOG HELPERS ================= */
+
     function openCreateDialog() {
         setEditingCustomer(null)
         setName("")
@@ -71,9 +88,6 @@ export default function CustomersPage() {
         setOpen(true)
     }
 
-    // -----------------------------
-    // Open edit dialog
-    // -----------------------------
     function openEditDialog(customer: Customer) {
         setEditingCustomer(customer)
         setName(customer.name)
@@ -81,9 +95,6 @@ export default function CustomersPage() {
         setOpen(true)
     }
 
-    // -----------------------------
-    // Save (create or update)
-    // -----------------------------
     async function handleSave() {
         if (!name || !email) return
 
@@ -103,25 +114,29 @@ export default function CustomersPage() {
                     prev.map(c => (c.id === updated.id ? updated : c))
                 )
 
-                toast.success("Customer updated successfully")
+                toast.success("Customer updated")
             } else {
-                const created = await apiFetch<Customer>("/customers", {
-                    method: "POST",
-                    body: JSON.stringify({ name, email }),
-                })
+                const created = await apiFetch<Customer>(
+                    "/customers/create-customer",
+                    {
+                        method: "POST",
+                        body: JSON.stringify({ name, email }),
+                    }
+                )
 
-                setCustomers(prev => [...prev, created])
-                toast.success("Customer created successfully")
+                setCustomers(prev => [created, ...prev])
+                toast.success("Customer created")
             }
 
             setOpen(false)
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         } catch (err: any) {
-                toast.error(err.message)
+            toast.error(err.message)
         } finally {
             setSaving(false)
         }
     }
+
+    /* ================= RENDER ================= */
 
     return (
         <div className="space-y-6">
@@ -134,12 +149,10 @@ export default function CustomersPage() {
                     </p>
                 </div>
 
-                <Button onClick={openCreateDialog}>
-                    Create Customer
-                </Button>
+                <Button onClick={openCreateDialog}>Create Customer</Button>
             </div>
 
-            {/* Customers Table */}
+            {/* Table */}
             <div className="rounded-md border">
                 <Table>
                     <TableHeader>
@@ -147,16 +160,18 @@ export default function CustomersPage() {
                             <TableHead>ID</TableHead>
                             <TableHead>Name</TableHead>
                             <TableHead>Email</TableHead>
-                            <TableHead className="text-right">
-                                Actions
-                            </TableHead>
+                            <TableHead className="text-right">Actions</TableHead>
                         </TableRow>
                     </TableHeader>
 
                     <TableBody>
                         {loading && (
                             <TableRow>
-                                <TableCell colSpan={4}>Loading...</TableCell>
+                                <TableCell colSpan={4}>
+                                    <div className="flex justify-center py-6">
+                                        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                                    </div>
+                                </TableCell>
                             </TableRow>
                         )}
 
@@ -170,9 +185,7 @@ export default function CustomersPage() {
                                         <Button
                                             variant="ghost"
                                             size="icon"
-                                            onClick={() =>
-                                                openEditDialog(customer)
-                                            }
+                                            onClick={() => openEditDialog(customer)}
                                         >
                                             <Pencil className="h-4 w-4" />
                                         </Button>
@@ -182,10 +195,7 @@ export default function CustomersPage() {
 
                         {!loading && customers.length === 0 && (
                             <TableRow>
-                                <TableCell
-                                    colSpan={4}
-                                    className="text-center"
-                                >
+                                <TableCell colSpan={4} className="text-center">
                                     No customers found
                                 </TableCell>
                             </TableRow>
@@ -194,40 +204,61 @@ export default function CustomersPage() {
                 </Table>
             </div>
 
+            {/* PAGINATION */}
+            <Pagination>
+                <PaginationContent>
+                    <PaginationItem>
+                        <PaginationPrevious
+                            href="#"
+                            onClick={e => {
+                                e.preventDefault()
+                                if (!loading && page > 1) setPage(p => p - 1)
+                            }}
+                        />
+                    </PaginationItem>
+
+                    <PaginationItem>
+                        <PaginationLink href="#" isActive>
+                            {page}
+                        </PaginationLink>
+                    </PaginationItem>
+
+                    <PaginationItem>
+                        <PaginationNext
+                            href="#"
+                            onClick={e => {
+                                e.preventDefault()
+                                if (!loading && customers.length === limit) {
+                                    setPage(p => p + 1)
+                                }
+                            }}
+                        />
+                    </PaginationItem>
+                </PaginationContent>
+            </Pagination>
+
             {/* Create / Edit Dialog */}
             <Dialog open={open} onOpenChange={setOpen}>
                 <DialogContent>
                     <DialogHeader>
                         <DialogTitle>
-                            {editingCustomer
-                                ? "Edit Customer"
-                                : "Create Customer"}
+                            {editingCustomer ? "Edit Customer" : "Create Customer"}
                         </DialogTitle>
                     </DialogHeader>
 
                     <div className="space-y-4">
-                        <div className="space-y-2">
+                        <div>
                             <Label>Name</Label>
-                            <Input
-                                value={name}
-                                onChange={e => setName(e.target.value)}
-                            />
+                            <Input value={name} onChange={e => setName(e.target.value)} />
                         </div>
 
-                        <div className="space-y-2">
+                        <div>
                             <Label>Email</Label>
-                            <Input
-                                value={email}
-                                onChange={e => setEmail(e.target.value)}
-                            />
+                            <Input value={email} onChange={e => setEmail(e.target.value)} />
                         </div>
 
                         <Button onClick={handleSave} disabled={saving}>
-                            {saving
-                                ? "Saving..."
-                                : editingCustomer
-                                    ? "Update"
-                                    : "Create"}
+                            {saving ? "Saving..." : editingCustomer ? "Update" : "Create"}
                         </Button>
                     </div>
                 </DialogContent>
