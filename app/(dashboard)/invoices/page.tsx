@@ -194,8 +194,8 @@ export default function InvoicesPage() {
                 <Table>
                     <TableHeader>
                         <TableRow>
-                            <TableHead>ID</TableHead>
-                            <TableHead>Order</TableHead>
+                            <TableHead>Invoice ID</TableHead>
+                            <TableHead>Order ID</TableHead>
                             <TableHead>Total</TableHead>
                             <TableHead>Status</TableHead>
                             <TableHead>Due Date</TableHead>
